@@ -7,14 +7,13 @@ from collections import Counter
 
 pygame.init()
 
-WIDTH = 1000
-HEIGHT = 650
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+WIDTH = 1280
+HEIGHT = 800
+screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("Slot Machine")
 
 clock = pygame.time.Clock()
 
-# Värvid
 BLACK = (8, 8, 18)
 GOLD = (255, 215, 0)
 DARK_GOLD = (184, 134, 11)
@@ -26,18 +25,23 @@ WHITE = (245, 245, 255)
 GRAY = (60, 60, 80)
 GLASS = (30, 30, 60, 140)
 
-# Sümbolid + rewards
+current_path = os.path.dirname(os.path.abspath(__file__))
+try:
+    background_img = pygame.image.load(os.path.join(current_path, "background.png")).convert()
+    background_img = pygame.transform.smoothscale(background_img, (WIDTH, HEIGHT))
+except:
+    background_img = None
+
 symbols_info = [
-    {"file": "bonus.png",  "name": "BONUS",  "prob": 0.00670},
-    {"file": "seitse.png", "name": "7",      "prob": 0.00446},
-    {"file": "diamond.png","name": "GEM",    "prob": 0.01339},
-    {"file": "cherry.png", "name": "CHERRY", "prob": 0.04464},
-    {"file": "bell.png",   "name": "BELL",   "prob": 0.06920},
-    {"file": "coin.png",   "name": "COIN",   "prob": 0.11161},
-    {"file": "bomb.png",   "name": "BOMB",   "prob": 0.75000},
+    {"file": "bonus.png",  "name": "BONUS",  "prob": 0.00536},
+    {"file": "seitse.png", "name": "7",      "prob": 0.003568},
+    {"file": "diamond.png","name": "GEM",    "prob": 0.010712},
+    {"file": "cherry.png", "name": "CHERRY", "prob": 0.035712},
+    {"file": "bell.png",   "name": "BELL",   "prob": 0.05536},
+    {"file": "coin.png",   "name": "COIN",   "prob": 0.089288},
+    {"file": "bomb.png",   "name": "BOMB",   "prob": 0.80000},
 ]
 
-# Base spins for EVERY symbol shown (except BONUS – handled separately)
 symbol_base_spins = {
     "7":      20,
     "GEM":    10,
@@ -48,27 +52,23 @@ symbol_base_spins = {
     "BONUS":  0,
 }
 
-SYMBOL_SIZE = 130
+SYMBOL_SIZE = 160
 
-current_path = os.path.dirname(os.path.abspath(__file__))
 for symb in symbols_info:
     try:
         img = pygame.image.load(os.path.join(current_path, symb["file"])).convert_alpha()
         symb["img"] = pygame.transform.smoothscale(img, (SYMBOL_SIZE, SYMBOL_SIZE))
-    except Exception as e:
-        print(f"Pilt puudu: {symb['file']} → {e}")
+    except:
         symb["img"] = pygame.Surface((SYMBOL_SIZE, SYMBOL_SIZE))
         symb["img"].fill((random.randint(120,255), random.randint(80,220), random.randint(60,180)))
 
-# Fondid
 font_title  = pygame.font.SysFont("georgia", 68, bold=True)
 font_big    = pygame.font.SysFont("georgia", 48, bold=True)
 font_med    = pygame.font.SysFont("georgia", 34, bold=True)
-font_small  = pygame.font.SysFont("arial", 22)
+font_small  = pygame.font.SysFont("arial", 21)
 font_button = pygame.font.SysFont("arialblack", 46, bold=True)
 font_win    = pygame.font.SysFont("impact", 72, bold=True)
 
-# Muutujad
 reels = [0, 0, 0]
 spinning = [False, False, False]
 spin_progress = [0.0] * 3
@@ -77,25 +77,19 @@ spin_durations = [0] * 3
 
 BASE_SPIN_TIME = 550
 EXTRA_DELAY_PER_REEL = 350
-glow_timer = 0.0
 
 last_win = 0
-spins_left = 5           # ← CHANGED TO 5 (as you requested)
+spins_left = 5
 
 game_state = "MENU"
 win_flash_timer = 0
 win_flash_active = False
 
 def draw_background():
-    screen.fill(BLACK)
-    for y in range(180):
-        ratio = y / 180
-        color = (
-            int(12 + 30 * ratio),
-            int(10 + 25 * ratio),
-            int(28 + 40 * ratio)
-        )
-        pygame.draw.line(screen, color, (0, y), (WIDTH, y))
+    if background_img:
+        screen.blit(background_img, (0, 0))
+    else:
+        screen.fill(BLACK)
 
 def draw_menu():
     draw_background()
@@ -104,7 +98,7 @@ def draw_menu():
     screen.blit(title, title_rect.move(6,6))
     screen.blit(title, title_rect)
 
-    btn_rect = pygame.Rect(WIDTH//2 - 160, 380, 320, 110)
+    btn_rect = pygame.Rect(WIDTH//2 - 180, 380, 360, 110)
     mouse = pygame.mouse.get_pos()
     hovered = btn_rect.collidepoint(mouse)
     pressed = pygame.mouse.get_pressed()[0] and hovered
@@ -121,77 +115,73 @@ def draw_menu():
     return btn_rect
 
 def draw_header():
-    spins_rect = pygame.Rect(WIDTH//2 - 220, 25, 440, 70)
+    spins_rect = pygame.Rect(WIDTH//2 - 240, 25, 480, 70)
     pygame.draw.rect(screen, (20, 18, 45), spins_rect, border_radius=18)
     pygame.draw.rect(screen, DARK_GOLD, spins_rect, width=4, border_radius=18)
     spins_txt = font_med.render(f"SPINS LEFT: {spins_left}", True, LIGHT_GOLD)
     screen.blit(spins_txt, spins_txt.get_rect(center=spins_rect.center))
 
 def draw_paytable():
-    x, y, w, h = WIDTH - 280, 120, 260, 380
+    x = WIDTH - 225 
+    y = 60
+    w = 190   
+    h = 630 
+
     glass = pygame.Surface((w, h), pygame.SRCALPHA)
     glass.fill(GLASS)
-    pygame.draw.rect(glass, (80,80,120,60), (0,0,w,h), border_radius=16)
+    pygame.draw.rect(glass, (80,80,120,60), (0,0,w,h), border_radius=22)
     screen.blit(glass, (x, y))
-    pygame.draw.rect(screen, DARK_GOLD, (x, y, w, h), border_radius=16, width=3)
+    pygame.draw.rect(screen, DARK_GOLD, (x, y, w, h), border_radius=22, width=4)
 
-    title = font_med.render("VÕIDUTABEL", True, GOLD)
-    screen.blit(title, (x + 20, y + 15))
+    y_off = y + 70
+    icon_size = 70           
 
-    y_off = y + 60
     for symb in symbols_info:
-        small = pygame.transform.smoothscale(symb["img"], (48, 48))
-        screen.blit(small, (x + 18, y_off + 4))
+        small = pygame.transform.smoothscale(symb["img"], (icon_size, icon_size))
+        screen.blit(small, (x + 18, y_off + 8))
 
         name = font_small.render(symb["name"], True, WHITE)
-        screen.blit(name, (x + 80, y_off + 8))
+        screen.blit(name, (x + 72, y_off + 10))
 
         base = symbol_base_spins.get(symb["name"], 0)
         if symb["name"] == "BONUS":
-            desc = "+50 spins (3× only)"
+            desc = "+100 spins"
             col = (255, 220, 100)
         else:
             desc = f"+{base} spins"
             col = (180, 255, 180)
 
         d = font_small.render(desc, True, col)
-        screen.blit(d, (x + 80, y_off + 32))
+        screen.blit(d, (x + 72, y_off + 36))
 
-        y_off += 58
+        y_off += 72          
 
 def draw_slot_area():
-    frame_rect = pygame.Rect(180, 140, 640, 320)
-    pygame.draw.rect(screen, DARK_GOLD, frame_rect, border_radius=28, width=8)
-    pygame.draw.rect(screen, GOLD, frame_rect, border_radius=28, width=3)
+    frame_rect = pygame.Rect(WIDTH//2 - 410, 155, 820, 410)
+    pygame.draw.rect(screen, DARK_GOLD, frame_rect, border_radius=32, width=9)
+    pygame.draw.rect(screen, GOLD, frame_rect, border_radius=32, width=3)
 
-    inner = frame_rect.inflate(-16, -16)
-    pygame.draw.rect(screen, (14, 12, 32), inner, border_radius=24)
+    inner = frame_rect.inflate(-24, -24)
+    pygame.draw.rect(screen, (14, 12, 32), inner, border_radius=26)
     return inner
 
 def draw_symbols(inner):
-    global glow_timer
-    start_x = inner.left + 60
-    y_pos = inner.centery - SYMBOL_SIZE // 2
+    start_x = inner.left + 85
+    y_pos = inner.centery - SYMBOL_SIZE // 2 - 8
 
     for i in range(3):
-        x = start_x + i * 200
+        x = start_x + i * 265
         cx = x + SYMBOL_SIZE // 2
         cy = y_pos + SYMBOL_SIZE // 2
 
         if spinning[i]:
             p = spin_progress[i]
-            offset_y = math.sin(p * math.pi * 6) * 9 * (1 - p)
-            scale = 1.0 + 0.06 * math.sin(p * math.pi * 10)
+            offset_y = math.sin(p * math.pi * 6) * 12 * (1 - p)
+            scale = 1.0 + 0.07 * math.sin(p * math.pi * 10)
 
             img = symbols_info[reels[i]]["img"]
             scaled = pygame.transform.smoothscale(img, (int(SYMBOL_SIZE * scale), int(SYMBOL_SIZE * scale)))
             rect = scaled.get_rect(center=(cx, cy + offset_y))
-
-            glow_timer += 0.16
-            alpha = int(80 + 70 * math.sin(glow_timer + i * 3))
-            glow = pygame.Surface((SYMBOL_SIZE + 80, SYMBOL_SIZE + 80), pygame.SRCALPHA)
-            pygame.draw.rect(glow, (*NEON_RED[:3], alpha), glow.get_rect(), border_radius=30)
-            screen.blit(glow, (rect.x - 40, rect.y - 40))
 
             screen.blit(scaled, rect.topleft)
         else:
@@ -203,30 +193,30 @@ def draw_win_effect():
         return
 
     win_flash_timer += 1
-    if win_flash_timer > (180 if last_win >= 20 else 120):
+    if win_flash_timer > (200 if last_win >= 20 else 130):
         win_flash_active = False
         win_flash_timer = 0
         return
 
-    flash_alpha = int(120 + 135 * math.sin(win_flash_timer * 0.35))
+    flash_alpha = int(130 + 125 * math.sin(win_flash_timer * 0.35))
     win_surf = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
 
     if last_win >= 20:
         txt = font_win.render(f"+{int(last_win)} SPINS!", True, (255, 215, 0))
         extra = font_big.render("MEGA WIN!", True, (255, 180, 60))
         extra.set_alpha(flash_alpha)
-        win_surf.blit(extra, extra.get_rect(center=(WIDTH//2, HEIGHT//2 - 130)))
+        win_surf.blit(extra, extra.get_rect(center=(WIDTH//2, HEIGHT//2 - 145)))
     else:
         txt = font_big.render(f"+{int(last_win)} SPINS", True, (200, 255, 180))
 
     txt.set_alpha(flash_alpha)
-    rect = txt.get_rect(center=(WIDTH//2, HEIGHT//2 - 30))
+    rect = txt.get_rect(center=(WIDTH//2, HEIGHT//2 - 35))
     win_surf.blit(txt, rect)
 
     screen.blit(win_surf, (0, 0))
 
 def draw_button():
-    btn_rect = pygame.Rect(WIDTH//2 - 140, 500, 280, 100)
+    btn_rect = pygame.Rect(WIDTH//2 - 160, HEIGHT - 150, 320, 105)
     mouse = pygame.mouse.get_pos()
     hovered = btn_rect.collidepoint(mouse)
     pressed = pygame.mouse.get_pressed()[0] and hovered
@@ -242,7 +232,7 @@ def draw_button():
         txt = "SPIN"
 
     pygame.draw.rect(screen, col, btn_rect, border_radius=35)
-    pygame.draw.rect(screen, LIGHT_GOLD, btn_rect, width=5, border_radius=35)
+    pygame.draw.rect(screen, LIGHT_GOLD, btn_rect, width=6, border_radius=35)
 
     t = font_button.render(txt, True, WHITE)
     screen.blit(t, t.get_rect(center=btn_rect.center))
@@ -251,13 +241,10 @@ def draw_button():
 
 def start_spin():
     global spins_left, spinning, spin_start_time, spin_durations, spin_progress, last_win, win_flash_active
-
     if spins_left <= 0 or any(spinning):
         return
-
     last_win = 0
     win_flash_active = False
-
     spinning = [True] * 3
     spin_start_time = pygame.time.get_ticks()
     spin_durations = [BASE_SPIN_TIME + i * EXTRA_DELAY_PER_REEL + random.randint(-50, 50) for i in range(3)]
@@ -266,13 +253,10 @@ def start_spin():
 
 def update_reels():
     global spinning, reels, spin_progress, last_win, win_flash_active
-
     if not any(spinning):
         return
-
     elapsed = pygame.time.get_ticks() - spin_start_time
     still = False
-
     for i in range(3):
         if elapsed < spin_durations[i]:
             still = True
@@ -282,7 +266,6 @@ def update_reels():
                 reels[i] = weighted_random_symbol()
         else:
             spin_progress[i] = 1.0
-
     if not still:
         spinning = [False] * 3
         check_win()
@@ -291,11 +274,9 @@ def update_reels():
 
 def check_win():
     global spins_left, last_win, win_flash_active
-
     counts = Counter(reels)
     total_extra = 0
     bonus_count = 0
-
     for sym_idx, count in counts.items():
         sym_name = symbols_info[sym_idx]["name"]
         if sym_name == "BONUS":
@@ -303,10 +284,8 @@ def check_win():
         else:
             base = symbol_base_spins.get(sym_name, 0)
             total_extra += base * count
-
     if bonus_count == 3:
-        total_extra += 50
-
+        total_extra += 100
     if total_extra > 0:
         spins_left += total_extra
         last_win = total_extra
@@ -321,7 +300,6 @@ def weighted_random_symbol():
             return i
     return len(symbols_info) - 1
 
-# PEA LOOP
 running = True
 play_rect = None
 spin_rect = None
@@ -331,6 +309,8 @@ while running:
 
     for e in pygame.event.get():
         if e.type == pygame.QUIT:
+            running = False
+        elif e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:  
             running = False
 
         if e.type == pygame.MOUSEBUTTONDOWN:
@@ -342,8 +322,7 @@ while running:
                     if spins_left > 0 and not any(spinning):
                         start_spin()
                     elif spins_left <= 0:
-                        # Restart game
-                        spins_left = 5          # ← also changed restart to 5
+                        spins_left = 5
                         last_win = 0
                         reels = [0, 0, 0]
 
